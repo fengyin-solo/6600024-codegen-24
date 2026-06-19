@@ -17,7 +17,7 @@
       class="dark-tree"
     >
       <template #default="{ node, data }">
-        <span class="custom-tree-node">
+        <span class="custom-tree-node" v-if="data">
           <el-icon v-if="data.type === 'Object'" class="text-yellow-400">
             <Folder />
           </el-icon>
