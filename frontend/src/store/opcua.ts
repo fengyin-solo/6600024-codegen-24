@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { OPCUANode, DataValue, AlarmEvent, SubscriptionConfig } from '../types'
+import type { OPCUANode, DataValue, AlarmEvent, SubscriptionConfig, ConnectionLog } from '../types'
 
 export const useOpcuaStore = defineStore('opcua', () => {
   // 状态
@@ -11,6 +11,8 @@ export const useOpcuaStore = defineStore('opcua', () => {
   const realTimeData = ref<Map<string, DataValue>>(new Map())
   const isConnected = ref(false)
   const dataHistory = ref<Map<string, Array<{ timestamp: number; value: number }>>>(new Map())
+  const connectionLogs = ref<ConnectionLog[]>([])
+  const sessionStartTime = ref<number | null>(null)
 
   // 初始化模拟节点树
   function initNodeTree() {
@@ -263,15 +265,34 @@ export const useOpcuaStore = defineStore('opcua', () => {
     alarms.value = []
   }
 
+  // 记录连接状态变更
+  function logConnection(status: 'connected' | 'disconnected', message?: string) {
+    connectionLogs.value.unshift({
+      timestamp: Date.now(),
+      status,
+      message
+    })
+    if (connectionLogs.value.length > 200) connectionLogs.value.pop()
+  }
+
   // 连接模拟
   function connect() {
     isConnected.value = true
+    sessionStartTime.value = Date.now()
     initNodeTree()
+    logConnection('connected', `已连接 OPC-UA 服务器 ${getServerUrl()}`)
   }
 
   // 断开连接
   function disconnect() {
     isConnected.value = false
+    sessionStartTime.value = null
+    logConnection('disconnected', '已断开 OPC-UA 连接')
+  }
+
+  // 获取服务器地址
+  function getServerUrl() {
+    return 'opc.tcp://localhost:4840'
   }
 
   // 计算属性
@@ -287,6 +308,8 @@ export const useOpcuaStore = defineStore('opcua', () => {
     realTimeData,
     isConnected,
     dataHistory,
+    connectionLogs,
+    sessionStartTime,
     // 方法
     initNodeTree,
     simulateDataUpdate,
@@ -298,6 +321,8 @@ export const useOpcuaStore = defineStore('opcua', () => {
     connect,
     disconnect,
     getAllVariableNodes,
+    getServerUrl,
+    logConnection,
     // 计算属性
     activeAlarmsCount,
     criticalAlarmsCount

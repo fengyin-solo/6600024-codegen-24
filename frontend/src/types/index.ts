@@ -46,6 +46,20 @@ export interface SubscriptionConfig {
   enabled: boolean
 }
 
+// 连接状态记录
+export interface ConnectionLog {
+  timestamp: number
+  status: 'connected' | 'disconnected'
+  message?: string
+}
+
+// 趋势截图
+export interface TrendSnapshot {
+  title: string
+  nodeId: string
+  dataUrl: string
+}
+
 // 历史数据点
 export interface HistoryDataPoint {
   timestamp: number

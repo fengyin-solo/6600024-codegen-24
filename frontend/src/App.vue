@@ -19,6 +19,15 @@
           离线
         </el-tag>
         <el-button
+          type="primary"
+          size="small"
+          :icon="Download"
+          :loading="exporting"
+          @click="exportDailyReport"
+        >
+          导出运行日报
+        </el-button>
+        <el-button
           :type="store.isConnected ? 'danger' : 'success'"
           size="small"
           @click="toggleConnection"
@@ -37,7 +46,7 @@
 
       <!-- 中央区域: 仪表盘 -->
       <main class="center-panel">
-        <DataDashboard />
+        <DataDashboard ref="dashboardRef" />
       </main>
 
       <!-- 右侧面板: 报警列表 -->
@@ -104,16 +113,62 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { Monitor, Bell, CircleCheck, CircleClose } from '@element-plus/icons-vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { Monitor, Bell, CircleCheck, CircleClose, Download } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useOpcuaStore } from './store/opcua'
 import NodeTree from './components/NodeTree.vue'
 import DataDashboard from './components/DataDashboard.vue'
+import { downloadDailyReport } from './utils/reportService'
 import type { AlarmEvent } from './types'
 
 const store = useOpcuaStore()
 const updateTimer = ref<number | null>(null)
+const dashboardRef = ref<InstanceType<typeof DataDashboard> | null>(null)
+const exporting = ref(false)
+
+/**
+ * 导出运行日报：汇总节点数据、趋势截图、报警统计与连接状态记录
+ */
+async function exportDailyReport() {
+  if (!store.isConnected) {
+    ElMessage.warning('当前未连接，将导出最近一次采集的数据')
+  }
+  exporting.value = true
+  try {
+    await nextTick()
+    const trends = dashboardRef.value?.captureCharts() ?? []
+    const nodes = store.getAllVariableNodes().map(node => {
+      const rt = store.realTimeData.get(node.id)
+      return {
+        id: node.id,
+        name: node.name,
+        nodeId: node.nodeId,
+        dataType: node.dataType,
+        value: rt?.value ?? node.value,
+        unit: node.unit,
+        quality: rt?.quality ?? node.quality,
+        description: node.description
+      }
+    })
+    downloadDailyReport({
+      generatedAt: Date.now(),
+      serverUrl: store.getServerUrl(),
+      isConnected: store.isConnected,
+      sessionStartTime: store.sessionStartTime,
+      nodes,
+      trends,
+      alarms: store.alarms,
+      connectionLogs: store.connectionLogs
+    })
+    ElMessage.success('运行日报已导出')
+  } catch (e) {
+    console.error('运行日报导出失败', e)
+    ElMessage.error('运行日报导出失败')
+  } finally {
+    exporting.value = false
+  }
+}
 
 const criticalCount = computed(() =>
   store.alarms.filter(a => a.severity === 'Critical' && !a.acknowledged).length

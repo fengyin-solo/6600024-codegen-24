@@ -116,13 +116,13 @@
       <h3 class="section-title">数据趋势</h3>
       <div class="charts-grid">
         <div class="chart-card">
-          <v-chart :option="tempChartOption" autoresize class="chart" />
+          <v-chart ref="tempChart" :option="tempChartOption" autoresize class="chart" />
         </div>
         <div class="chart-card">
-          <v-chart :option="pressureChartOption" autoresize class="chart" />
+          <v-chart ref="pressureChart" :option="pressureChartOption" autoresize class="chart" />
         </div>
         <div class="chart-card">
-          <v-chart :option="flowChartOption" autoresize class="chart" />
+          <v-chart ref="flowChart" :option="flowChartOption" autoresize class="chart" />
         </div>
       </div>
     </div>
@@ -130,7 +130,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
@@ -138,10 +138,40 @@ import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, TitleComponent } from 'echarts/components'
 import { CircleCheckFilled, CircleCloseFilled } from '@element-plus/icons-vue'
 import { useOpcuaStore } from '../store/opcua'
+import type { TrendSnapshot } from '../types'
 
 use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, TitleComponent])
 
 const store = useOpcuaStore()
+
+const tempChart = ref<any>(null)
+const pressureChart = ref<any>(null)
+const flowChart = ref<any>(null)
+
+/**
+ * 捕获三个趋势图的截图，用于运行日报导出
+ */
+function captureCharts(): TrendSnapshot[] {
+  const capture = (chartRef: { value: any }, title: string, nodeId: string): TrendSnapshot => {
+    try {
+      const instance = chartRef?.value
+      const dataUrl = instance?.getDataURL
+        ? instance.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#0f172a' })
+        : ''
+      return { title, nodeId, dataUrl }
+    } catch (e) {
+      console.warn('趋势截图获取失败:', title, e)
+      return { title, nodeId, dataUrl: '' }
+    }
+  }
+  return [
+    capture(tempChart, '温度趋势', 'ns=2;i=1002'),
+    capture(pressureChart, '压力趋势', 'ns=2;i=1003'),
+    capture(flowChart, '流量趋势', 'ns=2;i=2002')
+  ]
+}
+
+defineExpose({ captureCharts })
 
 // 获取节点当前值
 function getNodeValue(nodeId: string): number | boolean {
